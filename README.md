@@ -175,3 +175,28 @@ Not yet implemented:
 - Production-grade alert routing and escalation policies
 - Multi-source feeds (news and sentiment)
 - Fault-injection/load tests and SLA benchmarks
+
+## Performance Evidence
+
+Load test command used:
+
+```bash
+python load_test.py --count 2000 --batch-size 200 --wait-seconds 45
+```
+
+Recorded output:
+
+- Events published: `2000`
+- Starting row count: `3919`
+- Publish time: `1.28s`
+- Publish throughput: `1566.48 events/second`
+- Rows inserted during validation window: `1201`
+- End-to-end result: `PASS`
+
+Follow-up database snapshot after the run:
+
+```bash
+docker exec marketpulse-postgres psql -U marketpulse -d stock_market -c "SELECT COUNT(1) AS total_rows FROM stock_prices;"
+```
+
+- Total rows observed: `6073`
