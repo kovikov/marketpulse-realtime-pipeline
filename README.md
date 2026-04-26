@@ -91,6 +91,13 @@ The project uses [.env](.env) for configuration, including:
 - The consumer automatically creates the `stock_prices` table if it does not exist.
 - The Spark processor automatically creates the `stock_prices_curated` table if it does not exist.
 
+Optional alerting environment variables:
+
+- `ALERT_WEBHOOK_URL` (leave empty to disable webhook alerts)
+- `ALERT_FAILURE_THRESHOLD` (default `10`)
+- `ALERT_SUCCESS_RATIO_MIN` (default `0.90`)
+- `ALERT_COOLDOWN_SECONDS` (default `120`)
+
 ## Monitoring and Dead Letter Handling
 
 The consumer now includes baseline operational controls:
@@ -98,6 +105,7 @@ The consumer now includes baseline operational controls:
 - Event validation before database writes
 - Dead letter persistence for invalid or failed events (`dead_letter_events`)
 - Periodic consumer health metrics (`pipeline_metrics`)
+- Threshold-based alert hooks (console plus optional webhook)
 
 Check dead letter events:
 
@@ -110,6 +118,20 @@ Check consumer metrics:
 ```bash
 docker exec marketpulse-postgres psql -U marketpulse -d stock_market -c "SELECT metric_name, metric_value, recorded_at FROM pipeline_metrics ORDER BY recorded_at DESC LIMIT 10;"
 ```
+
+## Load Testing
+
+Use the included load test script to benchmark event throughput and persistence.
+
+```bash
+python load_test.py --count 2000 --batch-size 200 --wait-seconds 45
+```
+
+The script prints:
+
+- Publish throughput (events/second)
+- Row insert delta in PostgreSQL (`stock_prices`)
+- Basic pass/check summary
 
 ## Power BI Setup
 
@@ -145,9 +167,11 @@ Implemented:
 - Interactive real-time dashboard (Streamlit)
 - Power BI-ready SQL views
 - Baseline monitoring tables and dead-letter handling
+- Threshold-based alert hooks
+- Load test utility script
 
 Not yet implemented:
 
-- Automated alerting integrations (email/Slack/PagerDuty)
+- Production-grade alert routing and escalation policies
 - Multi-source feeds (news and sentiment)
 - Fault-injection/load tests and SLA benchmarks

@@ -1,5 +1,8 @@
 import json
 import os
+import time
+import urllib.error
+import urllib.request
 
 import psycopg2
 from psycopg2.extras import Json
@@ -27,6 +30,10 @@ REQUIRED_EVENT_FIELDS = (
     "event_time",
 )
 REPORT_EVERY_N_EVENTS = 50
+ALERT_WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL", "").strip()
+ALERT_FAILURE_THRESHOLD = int(os.getenv("ALERT_FAILURE_THRESHOLD", "10"))
+ALERT_SUCCESS_RATIO_MIN = float(os.getenv("ALERT_SUCCESS_RATIO_MIN", "0.90"))
+ALERT_COOLDOWN_SECONDS = int(os.getenv("ALERT_COOLDOWN_SECONDS", "120"))
 
 
 def create_database_connection():
@@ -189,6 +196,31 @@ def validate_event(event):
     return True, ""
 
 
+def send_alert(summary, reason):
+    alert_payload = {
+        "pipeline": "marketpulse-stock-consumer",
+        "reason": reason,
+        "summary": summary,
+    }
+    print("ALERT:", alert_payload)
+
+    if not ALERT_WEBHOOK_URL:
+        return
+
+    request = urllib.request.Request(
+        ALERT_WEBHOOK_URL,
+        data=json.dumps(alert_payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            print("Alert webhook response status:", response.status)
+    except urllib.error.URLError as error:
+        print("Failed to send alert webhook:", error)
+
+
 def create_kafka_consumer():
     consumer = KafkaConsumer(
         KAFKA_TOPIC,
@@ -214,6 +246,7 @@ def run_consumer():
     processed_count = 0
     inserted_count = 0
     failed_count = 0
+    last_alert_timestamp = 0.0
 
     try:
         for message in consumer:
@@ -241,19 +274,30 @@ def run_consumer():
                 print(error_message)
 
             if processed_count % REPORT_EVERY_N_EVENTS == 0:
+                success_ratio = inserted_count / processed_count if processed_count else 0
                 summary = {
                     "processed": processed_count,
                     "inserted": inserted_count,
                     "failed": failed_count,
                     "topic": KAFKA_TOPIC,
+                    "success_ratio": round(success_ratio, 4),
                 }
                 insert_pipeline_metric(
                     connection,
                     "consumer_success_ratio",
-                    inserted_count / processed_count if processed_count else 0,
+                    success_ratio,
                     summary,
                 )
                 print("Consumer health summary:", summary)
+
+                now = time.time()
+                if now - last_alert_timestamp >= ALERT_COOLDOWN_SECONDS:
+                    if failed_count >= ALERT_FAILURE_THRESHOLD:
+                        send_alert(summary, "failure-threshold-reached")
+                        last_alert_timestamp = now
+                    elif success_ratio < ALERT_SUCCESS_RATIO_MIN:
+                        send_alert(summary, "success-ratio-below-threshold")
+                        last_alert_timestamp = now
 
     finally:
         connection.close()
