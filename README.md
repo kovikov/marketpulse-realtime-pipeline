@@ -2,6 +2,8 @@
 
 This project builds a real-time stock market data pipeline using Python, Kafka, PostgreSQL, Docker, and Streamlit.
 
+It now includes a Spark structured-streaming processor for curated analytics output that can be consumed by Power BI.
+
 ## Project Flow
 
 1. Python producer collects stock prices.
@@ -14,10 +16,12 @@ This project builds a real-time stock market data pipeline using Python, Kafka, 
 
 - Python
 - Apache Kafka
+- Apache Spark (Structured Streaming)
 - PostgreSQL
 - Docker
 - Streamlit
 - Plotly
+- Power BI (views provided via SQL)
 
 ## How to Run
 
@@ -51,6 +55,12 @@ Run the Kafka consumer:
 python consumer.py
 ```
 
+Run the Spark processor (curated aggregates):
+
+```bash
+python spark_processor.py
+```
+
 Start the Streamlit dashboard:
 
 ```bash
@@ -77,6 +87,46 @@ The project uses [.env](.env) for configuration, including:
 ## Notes
 
 - Make sure Docker Desktop is running before starting the containers.
-- Kafka runs on port `9092` and PostgreSQL runs on port `5432`.
+- Kafka runs on port `9092` and Docker PostgreSQL is exposed on host port `55432`.
 - The consumer automatically creates the `stock_prices` table if it does not exist.
-# marketpulse-realtime-pipeline
+- The Spark processor automatically creates the `stock_prices_curated` table if it does not exist.
+
+## Power BI Setup
+
+Run the view script:
+
+```bash
+docker exec -i marketpulse-postgres psql -U marketpulse -d stock_market < powerbi_views.sql
+```
+
+In Power BI Desktop, connect to PostgreSQL using:
+
+- Server: `localhost`
+- Port: `55432`
+- Database: `stock_market`
+- Username: `marketpulse`
+- Password: `marketpulse123`
+
+Recommended reporting objects:
+
+- `stock_prices` (raw events)
+- `stock_prices_curated` (Spark aggregations)
+- `vw_stock_latest`
+- `vw_stock_curated_recent`
+- `vw_stock_latency`
+
+## Assignment Coverage Snapshot
+
+Implemented:
+
+- Kafka streaming ingest
+- Real-time consumer to PostgreSQL
+- Spark structured-streaming processor to curated table
+- Interactive real-time dashboard (Streamlit)
+- Power BI-ready SQL views
+
+Not yet implemented:
+
+- Automated monitoring and alerting stack
+- Multi-source feeds (news and sentiment)
+- Fault-injection/load tests and SLA benchmarks
