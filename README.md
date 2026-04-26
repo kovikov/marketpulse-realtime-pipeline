@@ -91,6 +91,26 @@ The project uses [.env](.env) for configuration, including:
 - The consumer automatically creates the `stock_prices` table if it does not exist.
 - The Spark processor automatically creates the `stock_prices_curated` table if it does not exist.
 
+## Monitoring and Dead Letter Handling
+
+The consumer now includes baseline operational controls:
+
+- Event validation before database writes
+- Dead letter persistence for invalid or failed events (`dead_letter_events`)
+- Periodic consumer health metrics (`pipeline_metrics`)
+
+Check dead letter events:
+
+```bash
+docker exec marketpulse-postgres psql -U marketpulse -d stock_market -c "SELECT id, source_topic, error_message, created_at FROM dead_letter_events ORDER BY created_at DESC LIMIT 10;"
+```
+
+Check consumer metrics:
+
+```bash
+docker exec marketpulse-postgres psql -U marketpulse -d stock_market -c "SELECT metric_name, metric_value, recorded_at FROM pipeline_metrics ORDER BY recorded_at DESC LIMIT 10;"
+```
+
 ## Power BI Setup
 
 Run the view script:
@@ -124,9 +144,10 @@ Implemented:
 - Spark structured-streaming processor to curated table
 - Interactive real-time dashboard (Streamlit)
 - Power BI-ready SQL views
+- Baseline monitoring tables and dead-letter handling
 
 Not yet implemented:
 
-- Automated monitoring and alerting stack
+- Automated alerting integrations (email/Slack/PagerDuty)
 - Multi-source feeds (news and sentiment)
 - Fault-injection/load tests and SLA benchmarks
